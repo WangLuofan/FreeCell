@@ -154,6 +154,8 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 		
 	if to_table_row.cards.size() == 0:
 		for index in range(moved_cards.size() - 1, -1, -1):
+			from_table_row.pop_card()
+		for index in range(moved_cards.size() - 1, -1, -1):
 			to_table_row.push_card(moved_cards[index])
 	else:
 		# 从连续序列中查找能被目标牌列接收的牌
