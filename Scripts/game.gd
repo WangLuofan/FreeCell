@@ -2,7 +2,7 @@ extends Control
 
 const CardScene: PackedScene = preload("res://Scenes/card.tscn")
 
-var row_selected_index: int = -1
+var stack_selected_index: int = -1
 
 @onready var table_rows: Array[TableRow] = [
 	$TableContainer/Table/Row0,
@@ -75,13 +75,35 @@ func cancel_all_selection() -> void:
 	for card_buffer in self.card_buffers:
 		card_buffer.set_selected(false)
 		
-	self.row_selected_index = -1
+	self.stack_selected_index = -1
+	
+## 根据当前选择的顺序获取第一张卡牌
+func get_top_card_by_index(stack_index: int) -> Card:
+	if stack_index == -1:
+		return null
+		
+	if int(stack_index / 8) == 0:
+		return self.table_rows[stack_index].cards.back()
+		
+	return self.card_buffers[stack_index % 8].card
 		
 ## 单击缓冲区
 func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
+	var pending_stack: int = self.stack_selected_index
 	self.cancel_all_selection()
-	if card_buffer.can_selected():
+	
+	# 单击当前缓存区
+	if pending_stack == card_buffer.stack_index:
+		return
+	
+	# 如果当前没有选择，且缓存区可以被选中，则选中
+	if pending_stack == -1 and card_buffer.can_selected():
 		card_buffer.set_selected(true)
+		self.stack_selected_index = card_buffer.stack_index
+	elif pending_stack >= 0:
+		var card: Card = self.get_top_card_by_index(pending_stack)
+		if card != null:
+			card_buffer.push_card(card)
 		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
 	# 如果点击的堆不符合当前牌的花色，返回False
@@ -97,14 +119,76 @@ func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
 		
 	return false
 	
+## 计算当前可移动最大牌数
+func calculate_max_card_can_move() -> int:
+	# 计算最大可移动数量
+	# 最大可移动牌数 = (空闲单元数 + 1) × 2^ 空列数
+	var free_buffers: int = 0
+	var free_columns: int = 0
+
+	for card_buffer in self.card_buffers:
+		if card_buffer.card == null:
+			free_buffers += 1
+	for table_row in self.table_rows:
+		if table_row.cards.size() <= 0:
+			free_columns += 1
+			
+	return int((free_buffers + 1) * pow(2, free_columns))
+	
+	
+## 移动到当前牌列
+func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: TableRow):
+	var max_move_count: int = self.calculate_max_card_can_move()
+	var moved_cards: Array[Card] = []
+	
+	# 先选出连续序列
+	var card_index: int = from_table_row.cards.size() - 1
+	for index in range(min(max_move_count, from_table_row.cards.size())):
+		var receving_card: Card = from_table_row.cards.get(card_index)
+		if moved_cards.is_empty() or receving_card.can_receive(moved_cards.back()):
+			moved_cards.append(receving_card)
+		else:
+			break
+			
+		card_index -= 1
+		
+	if to_table_row.cards.size() == 0:
+		for index in range(moved_cards.size() - 1, -1, -1):
+			to_table_row.push_card(moved_cards[index])
+	else:
+		# 从连续序列中查找能被目标牌列接收的牌
+		card_index = -1
+		for index in range(moved_cards.size() - 1, -1, -1):
+			if to_table_row.cards.back().can_receive(moved_cards[index]):
+				card_index = index
+				break
+		
+		if card_index != -1:
+			for index in range(card_index, -1, -1):
+				from_table_row.pop_card()
+			for index in range(card_index, -1, -1):
+				to_table_row.push_card(moved_cards[index])
+	
+## 移动到当前牌列
+func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
+	if int(pending_stack_index / 8) != 0:
+		# 检查缓存区的牌是否可以移动到牌堆
+		var card: Card = self.card_buffers[pending_stack_index % 8].card
+		if table_row.can_receive(card):
+			self.card_buffers[pending_stack_index % 8].pop_card()
+			table_row.push_card(card)
+	else:
+		var from_table_row: TableRow = self.table_rows[pending_stack_index]
+		self.move_row_card_to_row_if_needed(table_row, from_table_row)
+	
 ## 单击牌堆区
 func _on_card_stack_clicked(card_stack: CardStack) -> void:
 	# 没有选择的牌，不做任何处理
-	if self.row_selected_index == -1:
+	if self.stack_selected_index == -1:
 		return
 	
 	# 拿到牌堆的卡牌
-	var card: Card = self.table_rows[self.row_selected_index].get_children().back()
+	var card: Card = self.table_rows[self.stack_selected_index].cards.back()
 	
 	# 检查是否可以移动到牌堆
 	if self.check_card_can_move_to_stack(card, card_stack):
@@ -121,7 +205,7 @@ func push_card_to_stack(card: Card) -> void:
 ## 双击牌面
 func _on_table_row_double_clicked(table_row: TableRow) -> void:
 	self.cancel_all_selection()
-	if self.table_rows[table_row.row_index].get_children().is_empty():
+	if self.table_rows[table_row.stack_index].cards.is_empty():
 		return
 	
 	var matched_card_buffer: CardBuffer = null
@@ -131,16 +215,18 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 			break
 	
 	if matched_card_buffer != null:
-		var card: Card = self.table_rows[table_row.row_index].get_children().back()
+		var card: Card = self.table_rows[table_row.stack_index].cards.back()
+		self.table_rows[table_row.stack_index].pop_card()
 		matched_card_buffer.push_card(card)
 		
 ## 单击牌面
 func _on_table_row_single_clicked(table_row: TableRow) -> void:
+	var pending_stack_index: int = self.stack_selected_index
 	self.cancel_all_selection()
 	
-	if self.row_selected_index == -1:
-		self.table_row_masks[table_row.row_index].global_position = table_row.get_children().back().global_position
-		self.table_row_masks[table_row.row_index].visible = true
-		self.row_selected_index = table_row.row_index
+	if pending_stack_index == -1:
+		self.table_row_masks[table_row.stack_index].global_position = table_row.cards.back().global_position
+		self.table_row_masks[table_row.stack_index].visible = true
+		self.stack_selected_index = table_row.stack_index
 	else:
-		pass
+		self.move_card_to_row_if_needed(table_row, pending_stack_index)

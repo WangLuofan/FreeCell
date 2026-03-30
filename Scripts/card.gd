@@ -23,3 +23,13 @@ func initialize_card() -> void:
 func set_card(suit: int, value: int) -> void:
 	self.card_suit = suit
 	self.card_value = value
+	
+func can_receive(card: Card) -> bool:
+	if self.is_same_suit(card):
+		return false
+	return self.card_value == card.card_value + 1
+	
+func is_same_suit(card: Card) -> bool:
+	if self.card_suit % 2 == card.card_suit % 2:
+		return true
+	return false

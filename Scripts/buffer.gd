@@ -3,7 +3,7 @@ class_name CardBuffer
 
 var card: Card = null
 
-@export var buffer_index: int
+@export var stack_index: int
 @onready var mask: ColorRect = $Mask
 
 signal on_card_buffer_clicked
@@ -31,7 +31,9 @@ func pop_card() -> void:
 	if self.card == null:
 		return
 	
-	self.remove_child(self.card)
+	if self.card.get_parent_control() == self:
+		self.remove_child(self.card)
+		
 	self.card = null
 	
 ## 是否可以选择

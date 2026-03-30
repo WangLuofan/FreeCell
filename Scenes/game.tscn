@@ -28,18 +28,19 @@ theme_override_constants/separation = 8
 
 [node name="Buffer0" parent="BufferContainer/Buffers" unique_id=1186873294 instance=ExtResource("2_wrm1d")]
 layout_mode = 2
+stack_index = 8
 
 [node name="Buffer1" parent="BufferContainer/Buffers" unique_id=909191317 instance=ExtResource("2_wrm1d")]
 layout_mode = 2
-buffer_index = 1
+stack_index = 9
 
 [node name="Buffer2" parent="BufferContainer/Buffers" unique_id=509955488 instance=ExtResource("2_wrm1d")]
 layout_mode = 2
-buffer_index = 2
+stack_index = 10
 
 [node name="Buffer3" parent="BufferContainer/Buffers" unique_id=1509481362 instance=ExtResource("2_wrm1d")]
 layout_mode = 2
-buffer_index = 3
+stack_index = 11
 
 [node name="StackBoxContainer" type="HBoxContainer" parent="." unique_id=1964440491]
 layout_mode = 0
@@ -54,15 +55,12 @@ layout_mode = 2
 
 [node name="Stack1" parent="StackBoxContainer" unique_id=1659735890 instance=ExtResource("2_qxrlw")]
 layout_mode = 2
-stack_index = 1
 
 [node name="Stack2" parent="StackBoxContainer" unique_id=543241531 instance=ExtResource("2_qxrlw")]
 layout_mode = 2
-stack_index = 2
 
 [node name="Stack3" parent="StackBoxContainer" unique_id=1235663333 instance=ExtResource("2_qxrlw")]
 layout_mode = 2
-stack_index = 3
 
 [node name="TableContainer" type="Control" parent="." unique_id=1825772769]
 anchors_preset = 0
@@ -86,43 +84,43 @@ script = ExtResource("5_i6g32")
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 1
+stack_index = 1
 
 [node name="Row2" type="VBoxContainer" parent="TableContainer/Table" unique_id=1478956905]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 2
+stack_index = 2
 
 [node name="Row3" type="VBoxContainer" parent="TableContainer/Table" unique_id=1441668215]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 3
+stack_index = 3
 
 [node name="Row4" type="VBoxContainer" parent="TableContainer/Table" unique_id=95510416]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 4
+stack_index = 4
 
 [node name="Row5" type="VBoxContainer" parent="TableContainer/Table" unique_id=1201349968]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 5
+stack_index = 5
 
 [node name="Row6" type="VBoxContainer" parent="TableContainer/Table" unique_id=61674075]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 6
+stack_index = 6
 
 [node name="Row7" type="VBoxContainer" parent="TableContainer/Table" unique_id=1532368755]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
 script = ExtResource("5_i6g32")
-row_index = 7
+stack_index = 7
 
 [node name="TableMask0" parent="TableContainer" unique_id=1831558981 instance=ExtResource("5_wowpa")]
 visible = false

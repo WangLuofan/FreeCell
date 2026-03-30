@@ -1,10 +1,10 @@
 extends Control
 class_name CardStack
 
-@export var stack_index: int
 signal on_stack_clicked
 
 var card: Card = null
+@export var stack_index: int
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
