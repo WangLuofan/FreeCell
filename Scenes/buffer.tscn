@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://djdtxns41w2bc"]
+
+[ext_resource type="Script" uid="uid://cwc71ck45nlmc" path="res://Scripts/buffer.gd" id="1_skvw6"]
+[ext_resource type="Texture2D" uid="uid://damrd1bvsc3av" path="res://kerenel_Cards.png" id="1_v3ayo"]
+[ext_resource type="PackedScene" uid="uid://cf1lvml13frlq" path="res://Scenes/mask.tscn" id="3_fk5q3"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fk5q3"]
+atlas = ExtResource("1_v3ayo")
+region = Rect2(0, 320, 56, 80)
+
+[node name="Buffer" type="Control" unique_id=1186873294]
+custom_minimum_size = Vector2(56, 80)
+layout_mode = 3
+anchors_preset = 0
+offset_right = 56.0
+offset_bottom = 80.0
+script = ExtResource("1_skvw6")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=2016100979]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+texture = SubResource("AtlasTexture_fk5q3")
+
+[node name="Mask" parent="." unique_id=2045015576 instance=ExtResource("3_fk5q3")]
+visible = false
+z_index = 5
+layout_mode = 0
+mouse_filter = 2
+
+[connection signal="gui_input" from="." to="." method="_on_gui_input"]

@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://b2r040yg2vxre"]
+
+[ext_resource type="Texture2D" uid="uid://damrd1bvsc3av" path="res://kerenel_Cards.png" id="1_gytkm"]
+[ext_resource type="Script" uid="uid://oje3p5t4uwrw" path="res://Scripts/stack.gd" id="1_s12ec"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gytkm"]
+atlas = ExtResource("1_gytkm")
+region = Rect2(0, 400, 56, 80)
+
+[node name="Stack" type="Control" unique_id=900594810]
+custom_minimum_size = Vector2(56, 80)
+layout_mode = 3
+anchors_preset = 0
+offset_right = 56.0
+offset_bottom = 80.0
+script = ExtResource("1_s12ec")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1796723691]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+texture = SubResource("AtlasTexture_gytkm")
+
+[connection signal="gui_input" from="." to="." method="_on_gui_input"]

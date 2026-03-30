@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://dkp3nr270sasp"]
+
+[ext_resource type="Texture2D" uid="uid://damrd1bvsc3av" path="res://kerenel_Cards.png" id="1_0qqmn"]
+[ext_resource type="Script" uid="uid://ykcp43w8evki" path="res://Scripts/card.gd" id="2_wf8id"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_wf8id"]
+atlas = ExtResource("1_0qqmn")
+region = Rect2(56, 160, 56, 80)
+
+[node name="Card" type="Control" unique_id=1012992245]
+custom_minimum_size = Vector2(56, 20)
+layout_mode = 3
+anchors_preset = 0
+offset_right = 56.0
+offset_bottom = 80.0
+mouse_filter = 2
+script = ExtResource("2_wf8id")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=666917040]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+texture = SubResource("AtlasTexture_wf8id")
