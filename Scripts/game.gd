@@ -103,6 +103,7 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 	elif pending_stack >= 0:
 		var card: Card = self.get_top_card_by_index(pending_stack)
 		if card != null:
+			self.card_buffers[pending_stack % 8].pop_card()
 			card_buffer.push_card(card)
 		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
