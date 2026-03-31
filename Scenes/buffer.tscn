@@ -6,7 +6,7 @@
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_fk5q3"]
 atlas = ExtResource("1_v3ayo")
-region = Rect2(0, 320, 56, 80)
+region = Rect2(0, 0, 56, 80)
 
 [node name="Buffer" type="Control" unique_id=1186873294]
 custom_minimum_size = Vector2(56, 80)

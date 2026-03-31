@@ -1,8 +1,10 @@
 extends Control
 
 const CardScene: PackedScene = preload("res://Scenes/card.tscn")
+const DialogScene: PackedScene = preload("res://Scenes/dialog.tscn")
 
 var stack_selected_index: int = -1
+var game_step = 0
 
 @onready var table_rows: Array[TableRow] = [
 	$TableContainer/Table/Row0,
@@ -52,9 +54,25 @@ func _ready() -> void:
 		card_stack.on_stack_clicked.connect(_on_card_stack_clicked)
 		
 	self.start_new_game()
+	
+## 清理资源
+func clean_resource() -> void:
+	for table_row in table_rows:
+		table_row.clear_all_cards()  # 需要在 TableRow 中添加这个方法
+
+	for card_buffer in card_buffers:
+		if card_buffer.card != null:
+			card_buffer.pop_card()
+
+	for card_stack in card_stacks:
+		if card_stack.card != null:
+			card_stack.card.queue_free()
+			card_stack.card = null
 
 ## 开始新游戏
 func start_new_game() -> void:
+	self.clean_resource()
+	
 	var all_cards: Array[Card] = []
 	for suit in range(Consts.CARD_SUIT_TOTAL_COUNT):
 		for value in range(1, Consts.CARD_VALUE_TOTAL_COUNT + 1):
@@ -105,7 +123,8 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 		if card != null:
 			self.card_buffers[pending_stack % 8].pop_card()
 			card_buffer.push_card(card)
-		
+
+## 检查牌是否可以移动到牌堆		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
 	# 如果点击的堆不符合当前牌的花色，返回False
 	if card.card_suit != card_stack.stack_index:
@@ -135,7 +154,6 @@ func calculate_max_card_can_move() -> int:
 			free_columns += 1
 			
 	return int((free_buffers + 1) * pow(2, free_columns))
-	
 	
 ## 移动到当前牌列
 func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: TableRow):
@@ -171,11 +189,86 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 				from_table_row.pop_card()
 			for index in range(card_index, -1, -1):
 				to_table_row.push_card(moved_cards[index])
+				
+## 检查堆列是否有牌可以移动到牌堆
+func move_card_to_stack_if_needed() -> void:
+	var is_moved: bool = true
+	while is_moved:
+		is_moved = false
+		for table_row in self.table_rows:
+			if table_row.cards.size() <= 0:
+				continue
+				
+			var card: Card = table_row.cards.back()
+			var stack: CardStack = self.card_stacks[card.card_suit]
+			
+			if self.check_card_can_move_to_stack(card, stack):
+				table_row.pop_card()
+				stack.push_card(card)
+				
+				is_moved = true
+		
+		for buffer in self.card_buffers:
+			if buffer.card == null:
+				continue
+			
+			var card: Card = buffer.card
+			var stack: CardStack = self.card_stacks[card.card_suit]
+			if self.check_card_can_move_to_stack(card, stack):
+				buffer.pop_card()
+				stack.push_card(card)
+				
+		if not is_moved:
+			break
+	
+	self.check_game_is_end()
+	
+## 检查游戏是否结束
+func check_game_is_end() -> void:
+	# 0: 游戏继续，1： 游戏失败，2： 游戏成功
+	var game_state: int = 2
+	for stack in self.card_stacks:
+		if stack.card == null or stack.card.card_value != 13:
+			game_state = 0
+			break
+	
+	if game_state == 0:
+		for buffer in self.card_buffers:
+			# 如果还有空缓存区，游戏可以继续，返回
+			if buffer.card == null:
+				return
+			
+			for table_row in self.table_rows:
+				# 如果当前存在空列，游戏可以继续，返回
+				if table_row.cards.size() == 0:
+					return
+				# 如果当前牌列可以接受缓存区卡牌，返回
+				if table_row.can_receive(buffer.card):
+					return
+		
+		# 检查卡牌是否有可以接收的牌，如果有，游戏可以继续，返回
+		for table_row in self.table_rows:
+			for recv_table_row in self.table_rows:
+				if table_row == recv_table_row:
+					continue
+				if recv_table_row.can_receive(table_row.cards.back()):
+					return
+		game_state = 1
+					
+	if game_state == 0:
+		return
+	
+	var dialog: Dialog = DialogScene.instantiate()
+	self.add_child(dialog)
+	dialog.show_dialog(game_state == 2, func(): dialog.hide_dialog(); start_new_game())
 	
 ## 移动到当前牌列
 func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
 	if int(pending_stack_index / 8) != 0:
 		# 检查缓存区的牌是否可以移动到牌堆
+		if self.card_buffers[pending_stack_index % 8].card == null:
+			return
+		
 		var card: Card = self.card_buffers[pending_stack_index % 8].card
 		if table_row.can_receive(card):
 			self.card_buffers[pending_stack_index % 8].pop_card()
@@ -183,6 +276,8 @@ func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
 	else:
 		var from_table_row: TableRow = self.table_rows[pending_stack_index]
 		self.move_row_card_to_row_if_needed(table_row, from_table_row)
+		
+	self.move_card_to_stack_if_needed()
 	
 ## 单击牌堆区
 func _on_card_stack_clicked(card_stack: CardStack) -> void:
@@ -191,20 +286,23 @@ func _on_card_stack_clicked(card_stack: CardStack) -> void:
 		return
 	
 	# 拿到牌堆的卡牌
-	var card: Card = self.table_rows[self.stack_selected_index].cards.back()
+	var card: Card = null
+	if self.stack_selected_index / 8 == 0:
+		card = self.table_rows[self.stack_selected_index].cards.back()
+	else:
+		card = self.card_buffers[self.stack_selected_index % 8].card
+		
+	if card == null:
+		return
 	
 	# 检查是否可以移动到牌堆
 	if self.check_card_can_move_to_stack(card, card_stack):
 		card_stack.push_card(card)
 		self.cancel_all_selection()
 		
-## 将卡牌放入堆栈
-func push_card_to_stack(card: Card) -> void:
-	var card_stack: CardStack = self.card_stacks[card.card_suit]
-	
-	if card_stack != null:
-		card_stack.push_card(card)
-
+	self.move_card_to_stack_if_needed()
+	self.cancel_all_selection()
+		
 ## 双击牌面
 func _on_table_row_double_clicked(table_row: TableRow) -> void:
 	self.cancel_all_selection()
@@ -221,6 +319,8 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 		var card: Card = self.table_rows[table_row.stack_index].cards.back()
 		self.table_rows[table_row.stack_index].pop_card()
 		matched_card_buffer.push_card(card)
+	
+	self.move_card_to_stack_if_needed()
 		
 ## 单击牌面
 func _on_table_row_single_clicked(table_row: TableRow) -> void:
@@ -228,6 +328,9 @@ func _on_table_row_single_clicked(table_row: TableRow) -> void:
 	self.cancel_all_selection()
 	
 	if pending_stack_index == -1:
+		if table_row.cards.size() <= 0:
+			return
+		
 		self.table_row_masks[table_row.stack_index].global_position = table_row.cards.back().global_position
 		self.table_row_masks[table_row.stack_index].visible = true
 		self.stack_selected_index = table_row.stack_index
