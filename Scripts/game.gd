@@ -120,6 +120,11 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 		self.stack_selected_index = card_buffer.stack_index
 	elif pending_stack >= 0:
 		var card: Card = self.get_top_card_by_index(pending_stack)
+		if int(pending_stack / 8) == 0:
+			self.table_rows[pending_stack].pop_card()
+		else:
+			self.card_buffers[pending_stack % 8].pop_card()
+		
 		if card != null:
 			self.card_buffers[pending_stack % 8].pop_card()
 			card_buffer.push_card(card)
