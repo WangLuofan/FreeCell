@@ -6,6 +6,7 @@ const DialogScene: PackedScene = preload("res://Scenes/dialog.tscn")
 var stack_selected_index: int = -1
 var game_step = 0
 var card_buffers: Array[CardBuffer] = []
+var records: Array[Record] = []
 
 @onready var table_rows: Array = [
 	$TableContainer/Table/Row0,
@@ -55,6 +56,10 @@ func _ready() -> void:
 		card_stack.on_stack_clicked.connect(_on_card_stack_clicked)
 		
 	self.start_new_game()
+	
+func _process(delta: float) -> void:
+	if Input.is_action_just_pressed("revoke"):
+		self.do_revoke()
 
 func get_card_buffers() -> Array[CardBuffer]:
 	var buffers: Array[CardBuffer] = []
@@ -62,13 +67,34 @@ func get_card_buffers() -> Array[CardBuffer]:
 		buffers.append(self.table_rows[i])
 	return buffers
 	
+func do_revoke() -> void:
+	print("do_revoke")
+	if self.records.is_empty():
+		return
+	var record: Record = self.records.pop_back()
+	
+	if record.target_stack_index / 12 != 0:
+		for card_index: int in record.card_removed_count:
+			var card: Card = self.card_stacks[record.target_stack_index % 12].pop_card()
+			self.table_rows[record.original_stack_index].push_card(card)
+	else:
+		var moved_cards: Array[Card] = []
+		for card_index: int in record.card_removed_count:
+			var card: Card = self.table_rows[record.target_stack_index].pop_card()
+			moved_cards.append(card)
+		moved_cards.reverse()
+		for card: Card in moved_cards:
+			self.table_rows[record.original_stack_index].push_card(card)
+	
+	self.cancel_all_selection()
+	
 ## 清理资源
 func clean_resource() -> void:
 	for table_row in table_rows:
 		table_row.clear_all_cards()  # 需要在 TableRow 中添加这个方法
 
 	for card_stack in card_stacks:
-		if card_stack.card != null:
+		for card: Card in card_stack.cards:
 			card_stack.card.queue_free()
 			card_stack.card = null
 
@@ -131,13 +157,13 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 ## 检查牌是否可以移动到牌堆		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
 	# 如果点击的堆不符合当前牌的花色，返回False
-	if card.card_suit != card_stack.stack_index:
+	if card.card_suit != (card_stack.stack_index % 12):
 		return false
 	
-	if card_stack.card == null and card.card_value == 1:
+	if card_stack.cards.is_empty() and card.card_value == 1:
 		# 如果牌堆没有牌，只能移动A
 		return true
-	elif card_stack.card != null and card.card_value == card_stack.card.card_value + 1:
+	elif not card_stack.cards.is_empty() and card.card_value == card_stack.cards.back().card_value + 1:
 		# 如果牌堆中有牌，只能移动当前牌堆中牌值的下一张牌
 		return true
 		
@@ -180,6 +206,8 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 			from_table_row.pop_card()
 		for index in range(moved_cards.size() - 1, -1, -1):
 			to_table_row.push_card(moved_cards[index])
+			
+		self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
 	else:
 		# 从连续序列中查找能被目标牌列接收的牌
 		card_index = -1
@@ -193,6 +221,8 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 				from_table_row.pop_card()
 			for index in range(card_index, -1, -1):
 				to_table_row.push_card(moved_cards[index])
+				
+			self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
 				
 ## 检查堆列是否有牌可以移动到牌堆
 func move_card_to_stack_if_needed() -> void:
@@ -211,6 +241,7 @@ func move_card_to_stack_if_needed() -> void:
 				stack.push_card(card)
 				
 				is_moved = true
+				self.records.append(Record.newRecord(table_row.stack_index, stack.stack_index, 1))
 		
 		if not is_moved:
 			break
@@ -222,7 +253,7 @@ func check_game_is_end() -> void:
 	# 0: 游戏继续，1： 游戏失败，2： 游戏成功
 	var game_state: int = 2
 	for stack in self.card_stacks:
-		if stack.card == null or stack.card.card_value != 13:
+		if stack.cards.is_empty() or stack.cards.back().card_value != 13:
 			game_state = 0
 			break
 	
@@ -254,6 +285,8 @@ func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
 		if table_row.can_receive(card):
 			self.table_rows[pending_stack_index].pop_card()
 			table_row.push_card(card)
+			
+			self.records.append(Record.newRecord(pending_stack_index, table_row.stack_index, 1))
 	else:
 		var from_table_row: TableRow = self.table_rows[pending_stack_index]
 		self.move_row_card_to_row_if_needed(table_row, from_table_row)
@@ -300,6 +333,8 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 		var card: Card = self.table_rows[table_row.stack_index].cards.back()
 		self.table_rows[table_row.stack_index].pop_card()
 		matched_card_buffer.push_card(card)
+		
+		self.records.append(Record.newRecord(table_row.stack_index, matched_card_buffer.stack_index, 1))
 	
 	self.move_card_to_stack_if_needed()
 		

@@ -3,33 +3,27 @@ class_name CardStack
 
 signal on_stack_clicked
 
-var card: Card = null
+var cards: Array[Card] = []
 @export var stack_index: int
-
-# Called when the node enters the scene tree for the first time.
-func _ready() -> void:
-	pass # Replace with function body.
-
-
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
-	pass
 
 ##  推进卡片
 func push_card(ori_card: Card) -> void:
-	if self.card != null:
-		self.remove_child(self.card)
-		self.card.queue_free()
-		self.card = null
-	
 	if ori_card.get_parent_control() != null:
 		ori_card.reparent(self)
 	else:
 		self.add_child(ori_card)
 	
-	self.card = ori_card
-	self.card.position = Vector2.ZERO
-	self.card.z_index = 3
+	ori_card.position = Vector2.ZERO
+	ori_card.z_index = self.cards.size()
+	self.cards.append(ori_card)
+	
+func pop_card() -> Card:
+	if self.cards.is_empty():
+		return
+	var card: Card = self.cards.pop_back()
+	if card.get_parent_control() == self:
+		self.remove_child(card)
+	return card
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.is_pressed() and event.button_index == MOUSE_BUTTON_LEFT:

@@ -19,6 +19,8 @@ func _ready() -> void:
 
 ## 当前牌列是否可以接收卡牌
 func can_receive(card: Card) -> bool:
+	if card == null:
+		return false
 	if self.cards.size() == 0:
 		return true
 		
@@ -26,6 +28,9 @@ func can_receive(card: Card) -> bool:
 	return not row_card.is_same_suit(card) and row_card.card_value == card.card_value + 1
 	
 func push_card(card: Card) -> void:
+	if card == null:
+		return
+	
 	var parent_node: Control = card.get_parent_control()
 	if parent_node != null:
 		card.reparent(self)
