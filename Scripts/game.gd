@@ -5,8 +5,9 @@ const DialogScene: PackedScene = preload("res://Scenes/dialog.tscn")
 
 var stack_selected_index: int = -1
 var game_step = 0
+var card_buffers: Array[CardBuffer] = []
 
-@onready var table_rows: Array[TableRow] = [
+@onready var table_rows: Array = [
 	$TableContainer/Table/Row0,
 	$TableContainer/Table/Row1,
 	$TableContainer/Table/Row2,
@@ -14,7 +15,11 @@ var game_step = 0
 	$TableContainer/Table/Row4,
 	$TableContainer/Table/Row5,
 	$TableContainer/Table/Row6,
-	$TableContainer/Table/Row7
+	$TableContainer/Table/Row7,
+	$BufferContainer/Buffers/Buffer0, 
+	$BufferContainer/Buffers/Buffer1, 
+	$BufferContainer/Buffers/Buffer2,
+	$BufferContainer/Buffers/Buffer3
 ]
 
 @onready var table_row_masks: Array[ColorRect] = [
@@ -35,34 +40,32 @@ var game_step = 0
 	$StackBoxContainer/Stack3
 ]
 
-@onready var card_buffers: Array[CardBuffer] = [
-	$BufferContainer/Buffers/Buffer0, 
-	$BufferContainer/Buffers/Buffer1, 
-	$BufferContainer/Buffers/Buffer2,
-	$BufferContainer/Buffers/Buffer3
-]
-
 func _ready() -> void:
+	# 初始化 card_buffers
+	self.card_buffers = self.get_card_buffers()
+
 	for table_row in self.table_rows:
-		table_row.on_table_row_single_clicked.connect(_on_table_row_single_clicked)
-		table_row.on_table_row_double_clicked.connect(_on_table_row_double_clicked)
-		
-	for card_buffer in self.card_buffers:
-		card_buffer.on_card_buffer_clicked.connect(_on_card_buffer_clicked)
+		if table_row is TableRow:
+			(table_row as TableRow).on_table_row_single_clicked.connect(_on_table_row_single_clicked)
+			(table_row as TableRow).on_table_row_double_clicked.connect(_on_table_row_double_clicked)
+		elif table_row is CardBuffer:
+			table_row.on_card_buffer_clicked.connect(_on_card_buffer_clicked)
 		
 	for card_stack in self.card_stacks:
 		card_stack.on_stack_clicked.connect(_on_card_stack_clicked)
 		
 	self.start_new_game()
+
+func get_card_buffers() -> Array[CardBuffer]:
+	var buffers: Array[CardBuffer] = []
+	for i in range(8, self.table_rows.size()):
+		buffers.append(self.table_rows[i])
+	return buffers
 	
 ## 清理资源
 func clean_resource() -> void:
 	for table_row in table_rows:
 		table_row.clear_all_cards()  # 需要在 TableRow 中添加这个方法
-
-	for card_buffer in card_buffers:
-		if card_buffer.card != null:
-			card_buffer.pop_card()
 
 	for card_stack in card_stacks:
 		if card_stack.card != null:
@@ -83,8 +86,8 @@ func start_new_game() -> void:
 	all_cards.shuffle()
 	var card_index: int = 0
 	for index in range(Consts.CARD_SUIT_TOTAL_COUNT * Consts.CARD_VALUE_TOTAL_COUNT):
-		table_rows[card_index % Consts.CARD_TABLE_COL_COUNT].push_card(all_cards[index])
-		card_index += 1
+		table_rows[card_index].push_card(all_cards[index])
+		card_index = (card_index + 1) % Consts.CARD_TABLE_COL_COUNT
 
 ## 取消所有选择
 func cancel_all_selection() -> void:
@@ -99,34 +102,30 @@ func cancel_all_selection() -> void:
 func get_top_card_by_index(stack_index: int) -> Card:
 	if stack_index == -1:
 		return null
+	
+	if self.table_rows[stack_index].cards.is_empty():
+		return
 		
-	if int(stack_index / 8) == 0:
-		return self.table_rows[stack_index].cards.back()
-		
-	return self.card_buffers[stack_index % 8].card
+	return self.table_rows[stack_index].cards.back()
 		
 ## 单击缓冲区
 func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
-	var pending_stack: int = self.stack_selected_index
+	var pending_stack_index: int = self.stack_selected_index
 	self.cancel_all_selection()
 	
 	# 单击当前缓存区
-	if pending_stack == card_buffer.stack_index:
+	if pending_stack_index == card_buffer.stack_index:
 		return
 	
 	# 如果当前没有选择，且缓存区可以被选中，则选中
-	if pending_stack == -1 and card_buffer.can_selected():
+	if pending_stack_index == -1 and card_buffer.can_selected():
 		card_buffer.set_selected(true)
 		self.stack_selected_index = card_buffer.stack_index
-	elif pending_stack >= 0:
-		var card: Card = self.get_top_card_by_index(pending_stack)
-		if int(pending_stack / 8) == 0:
-			self.table_rows[pending_stack].pop_card()
-		else:
-			self.card_buffers[pending_stack % 8].pop_card()
+	elif pending_stack_index >= 0:
+		var card: Card = self.get_top_card_by_index(pending_stack_index)
 		
-		if card != null:
-			self.card_buffers[pending_stack % 8].pop_card()
+		if card != null and card_buffer.can_receive(card):
+			self.table_rows[pending_stack_index].pop_card()
 			card_buffer.push_card(card)
 
 ## 检查牌是否可以移动到牌堆		
@@ -152,7 +151,7 @@ func calculate_max_card_can_move() -> int:
 	var free_columns: int = 0
 
 	for card_buffer in self.card_buffers:
-		if card_buffer.card == null:
+		if card_buffer.cards.is_empty():
 			free_buffers += 1
 	for table_row in self.table_rows:
 		if table_row.cards.size() <= 0:
@@ -213,16 +212,6 @@ func move_card_to_stack_if_needed() -> void:
 				
 				is_moved = true
 		
-		for buffer in self.card_buffers:
-			if buffer.card == null:
-				continue
-			
-			var card: Card = buffer.card
-			var stack: CardStack = self.card_stacks[card.card_suit]
-			if self.check_card_can_move_to_stack(card, stack):
-				buffer.pop_card()
-				stack.push_card(card)
-				
 		if not is_moved:
 			break
 	
@@ -238,19 +227,6 @@ func check_game_is_end() -> void:
 			break
 	
 	if game_state == 0:
-		for buffer in self.card_buffers:
-			# 如果还有空缓存区，游戏可以继续，返回
-			if buffer.card == null:
-				return
-			
-			for table_row in self.table_rows:
-				# 如果当前存在空列，游戏可以继续，返回
-				if table_row.cards.size() == 0:
-					return
-				# 如果当前牌列可以接受缓存区卡牌，返回
-				if table_row.can_receive(buffer.card):
-					return
-		
 		# 检查卡牌是否有可以接收的牌，如果有，游戏可以继续，返回
 		for table_row in self.table_rows:
 			for recv_table_row in self.table_rows:
@@ -271,12 +247,12 @@ func check_game_is_end() -> void:
 func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
 	if int(pending_stack_index / 8) != 0:
 		# 检查缓存区的牌是否可以移动到牌堆
-		if self.card_buffers[pending_stack_index % 8].card == null:
+		if self.table_rows[pending_stack_index].cards.is_empty():
 			return
 		
-		var card: Card = self.card_buffers[pending_stack_index % 8].card
+		var card: Card = self.table_rows[pending_stack_index].cards.back()
 		if table_row.can_receive(card):
-			self.card_buffers[pending_stack_index % 8].pop_card()
+			self.table_rows[pending_stack_index].pop_card()
 			table_row.push_card(card)
 	else:
 		var from_table_row: TableRow = self.table_rows[pending_stack_index]
@@ -316,7 +292,7 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 	
 	var matched_card_buffer: CardBuffer = null
 	for card_buffer in self.card_buffers:
-		if card_buffer.card == null:
+		if card_buffer.cards.is_empty():
 			matched_card_buffer = card_buffer
 			break
 	

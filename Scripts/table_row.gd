@@ -1,8 +1,8 @@
 extends VBoxContainer
 class_name TableRow
 
-signal on_table_row_double_clicked
-signal on_table_row_single_clicked
+signal on_table_row_double_clicked(table_row: TableRow)
+signal on_table_row_single_clicked(table_row: TableRow)
 
 @export var stack_index: int
 
@@ -18,7 +18,7 @@ func _ready() -> void:
 	self.add_child(self.timer)
 
 ## 当前牌列是否可以接收卡牌
-func can_receive(card: Card):
+func can_receive(card: Card) -> bool:
 	if self.cards.size() == 0:
 		return true
 		
