@@ -60,6 +60,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("revoke"):
 		self.do_revoke()
+	elif Input.is_action_just_pressed("new_game"):
+		self.start_new_game()
 
 func get_card_buffers() -> Array[CardBuffer]:
 	var buffers: Array[CardBuffer] = []
@@ -94,9 +96,9 @@ func clean_resource() -> void:
 		table_row.clear_all_cards()  # 需要在 TableRow 中添加这个方法
 
 	for card_stack in card_stacks:
-		for card: Card in card_stack.cards:
-			card_stack.card.queue_free()
-			card_stack.card = null
+		while not card_stack.cards.is_empty():
+			var card: Card = card_stack.cards.pop_back()
+			card.queue_free()
 
 ## 开始新游戏
 func start_new_game() -> void:
