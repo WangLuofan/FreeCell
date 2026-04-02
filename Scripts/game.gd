@@ -103,6 +103,7 @@ func clean_resource() -> void:
 ## 开始新游戏
 func start_new_game() -> void:
 	self.clean_resource()
+	self.cancel_all_selection()
 	
 	var all_cards: Array[Card] = []
 	for suit in range(Consts.CARD_SUIT_TOTAL_COUNT):
