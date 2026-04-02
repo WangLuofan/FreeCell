@@ -182,7 +182,7 @@ func calculate_max_card_can_move() -> int:
 		if card_buffer.cards.is_empty():
 			free_buffers += 1
 	for table_row in self.table_rows:
-		if table_row.cards.size() <= 0:
+		if table_row.stack_index < 8 and table_row.cards.size() <= 0:
 			free_columns += 1
 			
 	return int((free_buffers + 1) * pow(2, free_columns))

@@ -3,18 +3,17 @@
 [ext_resource type="Script" uid="uid://dcvlkc6jg7mlq" path="res://Scripts/dialog.gd" id="1_irs7l"]
 
 [node name="Dialog" type="Control" unique_id=1727841779]
-visible = false
 z_index = 999
 layout_mode = 3
 anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_right = 536.0
+offset_bottom = 568.0
 script = ExtResource("1_irs7l")
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=1167731145]
 layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_right = 533.0
+offset_bottom = 571.0
 color = Color(0, 0, 0, 0.23529412)
 
 [node name="PopupPanel" type="PopupPanel" parent="." unique_id=1930617291]
