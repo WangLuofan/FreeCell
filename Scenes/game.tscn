@@ -204,6 +204,31 @@ offset_right = 504.0
 offset_bottom = 224.0
 mouse_filter = 2
 
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=2091855933]
+layout_mode = 0
+offset_left = 553.0
+offset_top = 220.0
+offset_right = 753.0
+offset_bottom = 388.0
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="new_game" type="Button" parent="VBoxContainer" unique_id=2117576963]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "新游戏"
+
+[node name="revoke" type="Button" parent="VBoxContainer" unique_id=731822595]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+disabled = true
+text = "撤销"
+
+[node name="exit_game" type="Button" parent="VBoxContainer" unique_id=593274272]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "退出游戏"
+
 [connection signal="gui_input" from="TableContainer/Table/Row0" to="TableContainer/Table/Row0" method="_on_row_gui_input"]
 [connection signal="gui_input" from="TableContainer/Table/Row1" to="TableContainer/Table/Row1" method="_on_row_gui_input"]
 [connection signal="gui_input" from="TableContainer/Table/Row2" to="TableContainer/Table/Row2" method="_on_row_gui_input"]
@@ -212,3 +237,6 @@ mouse_filter = 2
 [connection signal="gui_input" from="TableContainer/Table/Row5" to="TableContainer/Table/Row5" method="_on_row_gui_input"]
 [connection signal="gui_input" from="TableContainer/Table/Row6" to="TableContainer/Table/Row6" method="_on_row_gui_input"]
 [connection signal="gui_input" from="TableContainer/Table/Row7" to="TableContainer/Table/Row7" method="_on_row_gui_input"]
+[connection signal="pressed" from="VBoxContainer/new_game" to="." method="_on_new_game_pressed"]
+[connection signal="pressed" from="VBoxContainer/revoke" to="." method="_on_revoke_pressed"]
+[connection signal="pressed" from="VBoxContainer/exit_game" to="." method="_on_exit_game_pressed"]

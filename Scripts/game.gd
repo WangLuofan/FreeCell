@@ -6,7 +6,10 @@ const DialogScene: PackedScene = preload("res://Scenes/dialog.tscn")
 var stack_selected_index: int = -1
 var game_step = 0
 var card_buffers: Array[CardBuffer] = []
+
 var records: Array[Record] = []
+
+@onready var revoke_button: Button = $VBoxContainer/revoke
 
 @onready var table_rows: Array = [
 	$TableContainer/Table/Row0,
@@ -70,7 +73,6 @@ func get_card_buffers() -> Array[CardBuffer]:
 	return buffers
 	
 func do_revoke() -> void:
-	print("do_revoke")
 	if self.records.is_empty():
 		return
 	var record: Record = self.records.pop_back()
@@ -89,6 +91,7 @@ func do_revoke() -> void:
 			self.table_rows[record.original_stack_index].push_card(card)
 	
 	self.cancel_all_selection()
+	self.revoke_button.disabled = self.records.is_empty()
 	
 ## 清理资源
 func clean_resource() -> void:
@@ -211,6 +214,7 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 			to_table_row.push_card(moved_cards[index])
 			
 		self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
+		self.revoke_button.disabled = self.records.is_empty()
 	else:
 		# 从连续序列中查找能被目标牌列接收的牌
 		card_index = -1
@@ -226,6 +230,7 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 				to_table_row.push_card(moved_cards[index])
 				
 			self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
+			self.revoke_button.disabled = self.records.is_empty()
 				
 ## 检查堆列是否有牌可以移动到牌堆
 func move_card_to_stack_if_needed() -> void:
@@ -245,6 +250,7 @@ func move_card_to_stack_if_needed() -> void:
 				
 				is_moved = true
 				self.records.append(Record.newRecord(table_row.stack_index, stack.stack_index, 1))
+				self.revoke_button.disabled = self.records.is_empty()
 		
 		if not is_moved:
 			break
@@ -290,6 +296,7 @@ func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
 			table_row.push_card(card)
 			
 			self.records.append(Record.newRecord(pending_stack_index, table_row.stack_index, 1))
+			self.revoke_button.disabled = self.records.is_empty()
 	else:
 		var from_table_row: TableRow = self.table_rows[pending_stack_index]
 		self.move_row_card_to_row_if_needed(table_row, from_table_row)
@@ -338,6 +345,7 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 		matched_card_buffer.push_card(card)
 		
 		self.records.append(Record.newRecord(table_row.stack_index, matched_card_buffer.stack_index, 1))
+		self.revoke_button.disabled = self.records.is_empty()
 	
 	self.move_card_to_stack_if_needed()
 		
@@ -355,3 +363,13 @@ func _on_table_row_single_clicked(table_row: TableRow) -> void:
 		self.stack_selected_index = table_row.stack_index
 	else:
 		self.move_card_to_row_if_needed(table_row, pending_stack_index)
+
+
+func _on_new_game_pressed() -> void:
+	self.start_new_game()
+
+func _on_revoke_pressed() -> void:
+	self.do_revoke()
+
+func _on_exit_game_pressed() -> void:
+	self.get_tree().quit()
