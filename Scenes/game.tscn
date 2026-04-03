@@ -9,7 +9,8 @@
 [node name="Game" type="Control" unique_id=1757792687]
 layout_mode = 3
 anchors_preset = 0
-offset_right = 536.0
+offset_left = 15.0
+offset_right = 551.0
 offset_bottom = 572.0
 script = ExtResource("1_ebmjs")
 
@@ -82,47 +83,55 @@ theme_override_constants/separation = 8
 [node name="Row0" type="VBoxContainer" parent="TableContainer/Table" unique_id=1961837563]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 
 [node name="Row1" type="VBoxContainer" parent="TableContainer/Table" unique_id=797710814]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 1
 
 [node name="Row2" type="VBoxContainer" parent="TableContainer/Table" unique_id=1478956905]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 2
 
 [node name="Row3" type="VBoxContainer" parent="TableContainer/Table" unique_id=1441668215]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 3
 
 [node name="Row4" type="VBoxContainer" parent="TableContainer/Table" unique_id=95510416]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 4
 
 [node name="Row5" type="VBoxContainer" parent="TableContainer/Table" unique_id=1201349968]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 5
 
 [node name="Row6" type="VBoxContainer" parent="TableContainer/Table" unique_id=61674075]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 6
 
 [node name="Row7" type="VBoxContainer" parent="TableContainer/Table" unique_id=1532368755]
 custom_minimum_size = Vector2(56, 80)
 layout_mode = 2
+theme_override_constants/separation = 0
 script = ExtResource("5_i6g32")
 stack_index = 7
 

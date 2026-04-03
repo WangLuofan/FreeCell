@@ -10,6 +10,7 @@ var card_buffers: Array[CardBuffer] = []
 var records: Array[Record] = []
 
 @onready var revoke_button: Button = $VBoxContainer/revoke
+@onready var table_container: Control = $TableContainer
 
 @onready var table_rows: Array = [
 	$TableContainer/Table/Row0,
@@ -79,17 +80,38 @@ func do_revoke() -> void:
 	
 	if record.target_stack_index / 12 != 0:
 		for card_index: int in record.card_removed_count:
-			var card: Card = self.card_stacks[record.target_stack_index % 12].pop_card()
-			self.table_rows[record.original_stack_index].push_card(card)
+			var card: Card = self.card_stacks[record.target_stack_index % 12].pop_card(self.table_container, 60 + card_index)
+
+			var to_table_row = self.table_rows[record.original_stack_index]
+			var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
+			var global_y_pos: float = to_table_row.cards.back().global_position.y \
+				+ (Consts.CARD_VISIBLE_HEIGHT * (card_index + 1)) \
+					if not to_table_row.cards.is_empty() else \
+						to_table_row.global_position.y + \
+						(Consts.CARD_VISIBLE_HEIGHT * card_index)
+
+			card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
+				to_table_row.push_card(card)
+			)
 	else:
 		var moved_cards: Array[Card] = []
 		for card_index: int in record.card_removed_count:
-			var card: Card = self.table_rows[record.target_stack_index].pop_card()
-			moved_cards.append(card)
+			var card: Card = self.table_rows[record.target_stack_index].pop_card(self.table_container, 70 - card_index)
+			if card != null:
+				moved_cards.append(card)
 		moved_cards.reverse()
+
+		var card_index: int = 0
 		for card: Card in moved_cards:
-			self.table_rows[record.original_stack_index].push_card(card)
-	
+			var to_table_row = self.table_rows[record.original_stack_index]
+			var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
+			var global_y_pos: float = to_table_row.cards.back().global_position.y + (Consts.CARD_VISIBLE_HEIGHT * (card_index + 1)) if not to_table_row.cards.is_empty() else to_table_row.global_position.y
+			card_index += 1
+
+			card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
+				to_table_row.push_card(card)
+			)
+
 	self.cancel_all_selection()
 	self.revoke_button.disabled = self.records.is_empty()
 	
@@ -157,8 +179,11 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 		var card: Card = self.get_top_card_by_index(pending_stack_index)
 		
 		if card != null and card_buffer.can_receive(card):
-			self.table_rows[pending_stack_index].pop_card()
-			card_buffer.push_card(card)
+			self.table_rows[pending_stack_index].pop_card(self.table_container, 60)
+			
+			card.move_card_to(card_buffer.global_position, func():
+				card_buffer.push_card(card)
+			)
 
 ## 检查牌是否可以移动到牌堆		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
@@ -207,14 +232,26 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 			
 		card_index -= 1
 		
+	card_index = 0		
 	if to_table_row.cards.size() == 0:
 		for index in range(moved_cards.size() - 1, -1, -1):
-			from_table_row.pop_card()
-		for index in range(moved_cards.size() - 1, -1, -1):
-			to_table_row.push_card(moved_cards[index])
+			from_table_row.pop_card(self.table_container, 60 + moved_cards.size() + index)
 			
-		self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
-		self.revoke_button.disabled = self.records.is_empty()
+		for index in range(moved_cards.size() - 1, -1, -1):
+			var current_card: Card = moved_cards[index]  # 先保存引用
+			var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
+			var global_y_pos: float = to_table_row.cards.back().global_position.y + \
+				(Consts.CARD_VISIBLE_HEIGHT * (card_index + 1)) \
+					if not to_table_row.cards.is_empty() else \
+						to_table_row.global_position.y + (Consts.CARD_VISIBLE_HEIGHT * card_index)
+
+			current_card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
+				to_table_row.push_card(current_card)
+				self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
+				self.revoke_button.disabled = self.records.is_empty()
+			)
+			
+			card_index += 1
 	else:
 		# 从连续序列中查找能被目标牌列接收的牌
 		card_index = -1
@@ -225,36 +262,51 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 		
 		if card_index != -1:
 			for index in range(card_index, -1, -1):
-				from_table_row.pop_card()
+				from_table_row.pop_card(self.table_container, index + 60)
+				
+			var zIndex: int = 1
 			for index in range(card_index, -1, -1):
-				to_table_row.push_card(moved_cards[index])
+				var current_card: Card = moved_cards[index]  # 先保存引用
+				var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
+				var global_y_pos: float = to_table_row.cards.back().global_position.y + (Consts.CARD_VISIBLE_HEIGHT * zIndex) if not to_table_row.cards.is_empty() else to_table_row.global_position.y
 				
-			self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
-			self.revoke_button.disabled = self.records.is_empty()
+				current_card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
+					to_table_row.push_card(current_card)
+					self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
+					self.revoke_button.disabled = self.records.is_empty()
+				)
 				
+				zIndex += 1
 ## 检查堆列是否有牌可以移动到牌堆
-func move_card_to_stack_if_needed() -> void:
-	var is_moved: bool = true
-	while is_moved:
-		is_moved = false
+func auto_move_card_to_stack_if_needed() -> void:
+	var has_moved: bool = true
+
+	while has_moved:
+		has_moved = false
+
 		for table_row in self.table_rows:
 			if table_row.cards.size() <= 0:
 				continue
-				
+
 			var card: Card = table_row.cards.back()
 			var stack: CardStack = self.card_stacks[card.card_suit]
-			
+
 			if self.check_card_can_move_to_stack(card, stack):
-				table_row.pop_card()
-				stack.push_card(card)
-				
-				is_moved = true
+				table_row.pop_card(self.table_container, 60)
+
+				# 等待动画完成
+				var tween: Tween = card.move_card_to(stack.global_position, func():
+					stack.push_card(card)
+				)
+				await tween.finished
+
 				self.records.append(Record.newRecord(table_row.stack_index, stack.stack_index, 1))
 				self.revoke_button.disabled = self.records.is_empty()
-		
-		if not is_moved:
-			break
-	
+
+				has_moved = true
+				break  # 移动一张后重新检查
+
+	# 所有自动移动完成后，检查游戏是否结束
 	self.check_game_is_end()
 	
 ## 检查游戏是否结束
@@ -292,45 +344,54 @@ func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
 		
 		var card: Card = self.table_rows[pending_stack_index].cards.back()
 		if table_row.can_receive(card):
-			self.table_rows[pending_stack_index].pop_card()
-			table_row.push_card(card)
-			
+			self.table_rows[pending_stack_index].pop_card(self.table_container, 60)
+
+			var global_x_pos: float = table_row.cards.back().global_position.x if not table_row.cards.is_empty() else table_row.global_position.x
+			var global_y_pos: float = table_row.cards.back().global_position.y + Consts.CARD_VISIBLE_HEIGHT if not table_row.cards.is_empty() else table_row.global_position.y
+			var tween: Tween = card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
+				table_row.push_card(card)
+			)
+			await tween.finished
+
 			self.records.append(Record.newRecord(pending_stack_index, table_row.stack_index, 1))
 			self.revoke_button.disabled = self.records.is_empty()
 	else:
 		var from_table_row: TableRow = self.table_rows[pending_stack_index]
-		self.move_row_card_to_row_if_needed(table_row, from_table_row)
+		await self.move_row_card_to_row_if_needed(table_row, from_table_row)
+
+	await self.auto_move_card_to_stack_if_needed()
+	
+func move_card_to_stack_if_needed(stack_index: int) -> bool:
+	self.cancel_all_selection()
+	
+	# 拿到牌堆的卡牌
+	var card: Card = self.table_rows[stack_index].cards.back()
+	if card == null:
+		return false
+	
+	# 检查是否可以移动到牌堆
+	var card_stack: CardStack = self.card_stacks[card.card_suit]
+	if self.check_card_can_move_to_stack(card, card_stack):
+		card.move_card_to(Vector2(card_stack.global_position), func():
+			card_stack.push_card(card)
+		)
+		return true
 		
-	self.move_card_to_stack_if_needed()
+	return false
 	
 ## 单击牌堆区
 func _on_card_stack_clicked(card_stack: CardStack) -> void:
 	# 没有选择的牌，不做任何处理
 	if self.stack_selected_index == -1:
 		return
-	
-	# 拿到牌堆的卡牌
-	var card: Card = null
-	if self.stack_selected_index / 8 == 0:
-		card = self.table_rows[self.stack_selected_index].cards.back()
-	else:
-		card = self.card_buffers[self.stack_selected_index % 8].card
-		
-	if card == null:
-		return
-	
-	# 检查是否可以移动到牌堆
-	if self.check_card_can_move_to_stack(card, card_stack):
-		card_stack.push_card(card)
-		self.cancel_all_selection()
-		
-	self.move_card_to_stack_if_needed()
-	self.cancel_all_selection()
 		
 ## 双击牌面
 func _on_table_row_double_clicked(table_row: TableRow) -> void:
 	self.cancel_all_selection()
 	if self.table_rows[table_row.stack_index].cards.is_empty():
+		return
+	
+	if self.move_card_to_stack_if_needed(table_row.stack_index):
 		return
 	
 	var matched_card_buffer: CardBuffer = null
@@ -341,13 +402,17 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 	
 	if matched_card_buffer != null:
 		var card: Card = self.table_rows[table_row.stack_index].cards.back()
-		self.table_rows[table_row.stack_index].pop_card()
-		matched_card_buffer.push_card(card)
-		
+		self.table_rows[table_row.stack_index].pop_card(self.table_container, 60)
+
+		var tween: Tween = card.move_card_to(matched_card_buffer.global_position, func():
+			matched_card_buffer.push_card(card)
+		)
+		await tween.finished
+
 		self.records.append(Record.newRecord(table_row.stack_index, matched_card_buffer.stack_index, 1))
 		self.revoke_button.disabled = self.records.is_empty()
-	
-	self.move_card_to_stack_if_needed()
+
+	await self.auto_move_card_to_stack_if_needed()
 		
 ## 单击牌面
 func _on_table_row_single_clicked(table_row: TableRow) -> void:

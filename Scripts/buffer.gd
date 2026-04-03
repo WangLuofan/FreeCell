@@ -13,10 +13,13 @@ func _ready() -> void:
 	
 func clear_all_cards() -> void:
 	while self.cards.size() > 0:
-		var card: Card = self.pop_card()
+		var card: Card = self.pop_card(null)
 		card.queue_free()
 		
 func can_receive(card: Card) -> bool:
+	if card == null:
+		return false
+		
 	return self.cards.is_empty()
 
 ##  推进卡片
@@ -35,13 +38,20 @@ func push_card(ori_card: Card) -> void:
 	self.cards.back().z_index = 3
 
 ## 推出卡片
-func pop_card() -> Card:
+func pop_card(parent: Control, zIndex: int = 60) -> Card:
 	if self.cards.is_empty():
 		return
 	
 	var card: Card = self.cards.pop_back()
+	var origin_global_position: Vector2 = card.global_position
+	
 	if card.get_parent_control() == self:
 		self.remove_child(self.cards.back())
+		
+	if parent != null:
+		card.z_index = zIndex
+		parent.add_child(card)
+		card.global_position = origin_global_position
 		
 	return card
 	

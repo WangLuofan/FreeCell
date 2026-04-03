@@ -11,6 +11,14 @@ var card_value: int = -1
 func _ready() -> void:
 	self.initialize_card()
 	
+func move_card_to(global_pos: Vector2, call_back: Callable = Callable()) -> Tween:
+	var tween: Tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "global_position", global_pos, 0.25)
+	if call_back.is_valid():
+		tween.tween_callback(call_back)
+	tween.play()
+	return tween
+	
 ## 初始化卡片
 func initialize_card() -> void:
 	var atlasTexture: AtlasTexture = self.text_rect.texture as AtlasTexture

@@ -42,16 +42,22 @@ func push_card(card: Card) -> void:
 	
 func clear_all_cards() -> void:
 	while self.cards.size() > 0:
-		var card: Card = self.pop_card()
+		var card: Card = self.pop_card(null)
 		card.queue_free()
  	
-func pop_card() -> Card:
+func pop_card(parent: Control, zIndex: int = 60) -> Card:
 	if self.cards.size() <= 0:
 		return
 	
 	var card: Card = self.cards.pop_back()
+	var origin_global_position: Vector2 = card.global_position
+	
 	if self.get_parent_control() != null:
 		self.remove_child(card)
+	if parent != null:
+		card.z_index = zIndex
+		parent.add_child(card)
+		card.global_position = origin_global_position
 		
 	return card
 

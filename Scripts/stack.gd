@@ -17,12 +17,20 @@ func push_card(ori_card: Card) -> void:
 	ori_card.z_index = self.cards.size()
 	self.cards.append(ori_card)
 	
-func pop_card() -> Card:
+func pop_card(parent: Control, zIndex: int = 60) -> Card:
 	if self.cards.is_empty():
 		return
 	var card: Card = self.cards.pop_back()
+	var origin_global_position: Vector2 = card.global_position
+	
 	if card.get_parent_control() == self:
 		self.remove_child(card)
+	
+	if parent != null:
+		card.z_index = zIndex
+		parent.add_child(card)
+		card.global_position = origin_global_position	
+	
 	return card
 
 func _on_gui_input(event: InputEvent) -> void:
