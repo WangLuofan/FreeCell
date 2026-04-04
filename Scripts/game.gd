@@ -12,6 +12,7 @@ var card_buffers: Array[CardBuffer] = []
 
 var records: Array[Record] = []
 var is_revoking: bool = false
+var is_game_over: bool = false
 
 var all_cards: Array[Card] = []
 
@@ -170,6 +171,7 @@ func clean_resource() -> void:
 
 ## 开始新游戏
 func start_new_game() -> void:
+	self.is_game_over = false
 	self.clean_resource()
 	self.cancel_all_selection()
 			
@@ -289,13 +291,17 @@ func show_dialog(success: bool) -> void:
 	
 ## 检查游戏是否结束
 func check_game_is_end() -> void:
+	if self.is_game_over:
+		return
+
 	var is_game_success: bool = true
 	for stack in self.card_stacks:
 		if stack.cards.is_empty() or stack.cards.back().card_value != 13:
 			is_game_success = false
 			break
-			
+
 	if is_game_success:
+		self.is_game_over = true
 		self.show_dialog(true)
 		return
 		
@@ -317,7 +323,8 @@ func check_game_is_end() -> void:
 			if recv_table_row.can_receive(table_row.cards.back()):
 				return
 	
-	# 游戏失败			
+	# 游戏失败
+	self.is_game_over = true
 	self.show_dialog(false)
 
 ## 单击牌堆区
