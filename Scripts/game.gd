@@ -5,14 +5,20 @@ const DialogScene: PackedScene = preload("res://Scenes/dialog.tscn")
 
 var stack_selected_index: int = -1
 var game_step = 0
+
+var table_rows: Array[TableRow] = []
+var card_stacks: Array[CardStack] = []
 var card_buffers: Array[CardBuffer] = []
 
 var records: Array[Record] = []
+var is_revoking: bool = false
+
+var all_cards: Array[Card] = []
 
 @onready var revoke_button: Button = $VBoxContainer/revoke
 @onready var table_container: Control = $TableContainer
 
-@onready var table_rows: Array = [
+@onready var all_panels: Array = [
 	$TableContainer/Table/Row0,
 	$TableContainer/Table/Row1,
 	$TableContainer/Table/Row2,
@@ -24,7 +30,11 @@ var records: Array[Record] = []
 	$BufferContainer/Buffers/Buffer0, 
 	$BufferContainer/Buffers/Buffer1, 
 	$BufferContainer/Buffers/Buffer2,
-	$BufferContainer/Buffers/Buffer3
+	$BufferContainer/Buffers/Buffer3,
+	$StackBoxContainer/Stack0, 
+	$StackBoxContainer/Stack1, 
+	$StackBoxContainer/Stack2, 
+	$StackBoxContainer/Stack3
 ]
 
 @onready var table_row_masks: Array[ColorRect] = [
@@ -38,23 +48,25 @@ var records: Array[Record] = []
 	$TableContainer/TableMask7
 ]
 
-@onready var card_stacks: Array[CardStack] = [
-	$StackBoxContainer/Stack0, 
-	$StackBoxContainer/Stack1, 
-	$StackBoxContainer/Stack2, 
-	$StackBoxContainer/Stack3
-]
-
 func _ready() -> void:
 	# 初始化 card_buffers
+	self.table_rows = self.get_card_rows()
 	self.card_buffers = self.get_card_buffers()
+	self.card_stacks = self.get_card_stacks()
+	
+	# 初始化卡牌
+	for suit in range(Consts.CARD_SUIT_TOTAL_COUNT):
+		for value in range(1, Consts.CARD_VALUE_TOTAL_COUNT + 1):
+			var card: Card = CardScene.instantiate()
+			card.set_card(suit, value)
+			all_cards.append(card)
 
 	for table_row in self.table_rows:
-		if table_row is TableRow:
-			(table_row as TableRow).on_table_row_single_clicked.connect(_on_table_row_single_clicked)
-			(table_row as TableRow).on_table_row_double_clicked.connect(_on_table_row_double_clicked)
-		elif table_row is CardBuffer:
-			table_row.on_card_buffer_clicked.connect(_on_card_buffer_clicked)
+		table_row.on_table_row_single_clicked.connect(_on_table_row_single_clicked)
+		table_row.on_table_row_double_clicked.connect(_on_table_row_double_clicked)
+		
+	for card_buffer in self.card_buffers:
+		card_buffer.on_card_buffer_clicked.connect(_on_card_buffer_clicked)
 		
 	for card_stack in self.card_stacks:
 		card_stack.on_stack_clicked.connect(_on_card_stack_clicked)
@@ -67,75 +79,99 @@ func _process(delta: float) -> void:
 	elif Input.is_action_just_pressed("new_game"):
 		self.start_new_game()
 
+func get_card_rows() -> Array[TableRow]:
+	var rows: Array[TableRow] = []
+	for i in range(0, Consts.CARD_STACK_START_INDEX):
+		rows.append(self.all_panels[i])
+	return rows
+
+func get_card_stacks() -> Array[CardStack]:
+	var stacks: Array[CardStack] = []
+	for i in range(Consts.CARD_STACK_START_INDEX, Consts.CARD_STACK_START_INDEX + Consts.CARD_STACK_COUNT):
+		stacks.append(self.all_panels[i])
+	return stacks
+
 func get_card_buffers() -> Array[CardBuffer]:
 	var buffers: Array[CardBuffer] = []
-	for i in range(8, self.table_rows.size()):
-		buffers.append(self.table_rows[i])
+	for i in range(Consts.CARD_BUFFER_START_INDEX, Consts.CARD_BUFFER_START_INDEX + Consts.CARD_BUFFER_COUNT):
+		buffers.append(self.all_panels[i])
 	return buffers
 	
-func do_revoke() -> void:
-	if self.records.is_empty():
+func move_card_to_position_animated(cards: Array[Card], global_positions: Array[Vector2]) -> void:
+	assert(cards.size() == global_positions.size(), "cards的长度不等于global_positions的长度")
+
+	if cards.is_empty():
 		return
-	var record: Record = self.records.pop_back()
+
+	var tween: Tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	for index in cards.size():
+		var card: Card = cards[index]
+		var pos: Vector2 = global_positions[index]
+
+		if index == 0:
+			# 第一个动画不能用 parallel()
+			tween.tween_property(card, "global_position", pos, 0.25)
+		else:
+			# 后续动画并行执行
+			tween.parallel().tween_property(card, "global_position", pos, 0.25)
+
+	await tween.finished
+
+# 将卡牌从一个容器移动到另外一个容器
+func move_cards_from_panel_to_panel(from_index: int, to_index: int, moved_count: int) -> void:
+	if from_index < 0 or from_index == to_index or \
+		to_index >= Consts.CARD_STACK_START_INDEX + Consts.CARD_STACK_COUNT or \
+		moved_count <= 0:
+		return
 	
-	if record.target_stack_index / 12 != 0:
-		for card_index: int in record.card_removed_count:
-			var card: Card = self.card_stacks[record.target_stack_index % 12].pop_card(self.table_container, 60 + card_index)
-
-			var to_table_row = self.table_rows[record.original_stack_index]
-			var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
-			var global_y_pos: float = to_table_row.cards.back().global_position.y \
-				+ (Consts.CARD_VISIBLE_HEIGHT * (card_index + 1)) \
-					if not to_table_row.cards.is_empty() else \
-						to_table_row.global_position.y + \
-						(Consts.CARD_VISIBLE_HEIGHT * card_index)
-
-			card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
-				to_table_row.push_card(card)
-			)
-	else:
-		var moved_cards: Array[Card] = []
-		for card_index: int in record.card_removed_count:
-			var card: Card = self.table_rows[record.target_stack_index].pop_card(self.table_container, 70 - card_index)
-			if card != null:
-				moved_cards.append(card)
-		moved_cards.reverse()
-
-		var card_index: int = 0
-		for card: Card in moved_cards:
-			var to_table_row = self.table_rows[record.original_stack_index]
-			var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
-			var global_y_pos: float = to_table_row.cards.back().global_position.y + (Consts.CARD_VISIBLE_HEIGHT * (card_index + 1)) if not to_table_row.cards.is_empty() else to_table_row.global_position.y
-			card_index += 1
-
-			card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
-				to_table_row.push_card(card)
-			)
+	var moved_cards: Array[Card] = []
+	var moved_positions: Array[Vector2] = []
+	
+	var to = self.all_panels[to_index]
+	var from = self.all_panels[from_index]
+	
+	for index in range(moved_count):
+		var card: Card = from.pop_card(self.table_container, 60 + moved_count - index)
+		moved_cards.insert(0, card)
+		
+		var pos: Vector2 = to.global_position
+		
+		if to.stack_index < Consts.CARD_BUFFER_START_INDEX:
+			pos.y = to.global_position.y + (Consts.CARD_VISIBLE_HEIGHT * (to.cards.size() + (moved_count - index - 1)))
+				
+		moved_positions.insert(0, pos)
+	
+	await self.move_card_to_position_animated(moved_cards, moved_positions)
+	for card in moved_cards:
+		to.push_card(card)
+	
+	if not self.is_revoking:
+		self.records.append(Record.newRecord(from_index, to_index, moved_count))
+		await self.auto_move_card_to_stack_if_needed()
+	
+func do_revoke() -> void:
+	if self.records.is_empty() or self.is_revoking:
+		return
+	self.is_revoking = true
+		
+	var record: Record = self.records.pop_back()
+	await self.move_cards_from_panel_to_panel(record.target_stack_index, record.original_stack_index, record.card_moved_count)
 
 	self.cancel_all_selection()
 	self.revoke_button.disabled = self.records.is_empty()
+	self.is_revoking = false
 	
 ## 清理资源
 func clean_resource() -> void:
-	for table_row in table_rows:
-		table_row.clear_all_cards()  # 需要在 TableRow 中添加这个方法
-
-	for card_stack in card_stacks:
-		while not card_stack.cards.is_empty():
-			var card: Card = card_stack.cards.pop_back()
-			card.queue_free()
+	for panel in self.all_panels:
+		while not panel.cards.is_empty():
+			panel.pop_card()
 
 ## 开始新游戏
 func start_new_game() -> void:
 	self.clean_resource()
 	self.cancel_all_selection()
-	
-	var all_cards: Array[Card] = []
-	for suit in range(Consts.CARD_SUIT_TOTAL_COUNT):
-		for value in range(1, Consts.CARD_VALUE_TOTAL_COUNT + 1):
-			var card: Card = CardScene.instantiate()
-			card.set_card(suit, value)
-			all_cards.append(card)
 			
 	all_cards.shuffle()
 	var card_index: int = 0
@@ -151,16 +187,6 @@ func cancel_all_selection() -> void:
 		card_buffer.set_selected(false)
 		
 	self.stack_selected_index = -1
-	
-## 根据当前选择的顺序获取第一张卡牌
-func get_top_card_by_index(stack_index: int) -> Card:
-	if stack_index == -1:
-		return null
-	
-	if self.table_rows[stack_index].cards.is_empty():
-		return
-		
-	return self.table_rows[stack_index].cards.back()
 		
 ## 单击缓冲区
 func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
@@ -176,14 +202,10 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 		card_buffer.set_selected(true)
 		self.stack_selected_index = card_buffer.stack_index
 	elif pending_stack_index >= 0:
-		var card: Card = self.get_top_card_by_index(pending_stack_index)
+		if self.all_panels[pending_stack_index].cards.is_empty():
+			return
 		
-		if card != null and card_buffer.can_receive(card):
-			self.table_rows[pending_stack_index].pop_card(self.table_container, 60)
-			
-			card.move_card_to(card_buffer.global_position, func():
-				card_buffer.push_card(card)
-			)
+		await self.move_cards_from_panel_to_panel(pending_stack_index, self.stack_selected_index, 1)
 
 ## 检查牌是否可以移动到牌堆		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
@@ -218,65 +240,25 @@ func calculate_max_card_can_move() -> int:
 	
 ## 移动到当前牌列
 func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: TableRow):
-	var max_move_count: int = self.calculate_max_card_can_move()
-	var moved_cards: Array[Card] = []
+	var max_move_count: int = min(self.calculate_max_card_can_move(), from_table_row.cards.size())
+	var moved_count: int = 0
 	
-	# 先选出连续序列
-	var card_index: int = from_table_row.cards.size() - 1
-	for index in range(min(max_move_count, from_table_row.cards.size())):
-		var receving_card: Card = from_table_row.cards.get(card_index)
-		if moved_cards.is_empty() or receving_card.can_receive(moved_cards.back()):
-			moved_cards.append(receving_card)
+	var target_receving_card: Card = to_table_row.cards.back() if not to_table_row.cards.is_empty() else null
+	var pre_card: Card = null
+	for index in range(from_table_row.cards.size() - 1, from_table_row.cards.size() - 1 - max_move_count, -1):
+		var card: Card = from_table_row.cards.get(index)
+		if pre_card == null or card.can_receive(pre_card):
+			moved_count += 1
+			pre_card = card
 		else:
 			break
-			
-		card_index -= 1
 		
-	card_index = 0		
-	if to_table_row.cards.size() == 0:
-		for index in range(moved_cards.size() - 1, -1, -1):
-			from_table_row.pop_card(self.table_container, 60 + moved_cards.size() + index)
-			
-		for index in range(moved_cards.size() - 1, -1, -1):
-			var current_card: Card = moved_cards[index]  # 先保存引用
-			var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
-			var global_y_pos: float = to_table_row.cards.back().global_position.y + \
-				(Consts.CARD_VISIBLE_HEIGHT * (card_index + 1)) \
-					if not to_table_row.cards.is_empty() else \
-						to_table_row.global_position.y + (Consts.CARD_VISIBLE_HEIGHT * card_index)
-
-			current_card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
-				to_table_row.push_card(current_card)
-				self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
-				self.revoke_button.disabled = self.records.is_empty()
-			)
-			
-			card_index += 1
-	else:
-		# 从连续序列中查找能被目标牌列接收的牌
-		card_index = -1
-		for index in range(moved_cards.size() - 1, -1, -1):
-			if to_table_row.cards.back().can_receive(moved_cards[index]):
-				card_index = index
-				break
-		
-		if card_index != -1:
-			for index in range(card_index, -1, -1):
-				from_table_row.pop_card(self.table_container, index + 60)
-				
-			var zIndex: int = 1
-			for index in range(card_index, -1, -1):
-				var current_card: Card = moved_cards[index]  # 先保存引用
-				var global_x_pos: float = to_table_row.cards.back().global_position.x if not to_table_row.cards.is_empty() else to_table_row.global_position.x
-				var global_y_pos: float = to_table_row.cards.back().global_position.y + (Consts.CARD_VISIBLE_HEIGHT * zIndex) if not to_table_row.cards.is_empty() else to_table_row.global_position.y
-				
-				current_card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
-					to_table_row.push_card(current_card)
-					self.records.append(Record.newRecord(from_table_row.stack_index, to_table_row.stack_index, moved_cards.size()))
-					self.revoke_button.disabled = self.records.is_empty()
-				)
-				
-				zIndex += 1
+		if target_receving_card != null and target_receving_card.can_receive(card):
+			break
+	
+	if target_receving_card == null or target_receving_card.can_receive(pre_card):
+		await self.move_cards_from_panel_to_panel(from_table_row.stack_index, to_table_row.stack_index, moved_count)
+	
 ## 检查堆列是否有牌可以移动到牌堆
 func auto_move_card_to_stack_if_needed() -> void:
 	var has_moved: bool = true
@@ -284,101 +266,60 @@ func auto_move_card_to_stack_if_needed() -> void:
 	while has_moved:
 		has_moved = false
 
-		for table_row in self.table_rows:
-			if table_row.cards.size() <= 0:
+		for panel in self.table_rows + self.card_buffers:
+			if panel.cards.size() <= 0:
 				continue
 
-			var card: Card = table_row.cards.back()
+			var card: Card = panel.cards.back()
 			var stack: CardStack = self.card_stacks[card.card_suit]
 
 			if self.check_card_can_move_to_stack(card, stack):
-				table_row.pop_card(self.table_container, 60)
-
-				# 等待动画完成
-				var tween: Tween = card.move_card_to(stack.global_position, func():
-					stack.push_card(card)
-				)
-				await tween.finished
-
-				self.records.append(Record.newRecord(table_row.stack_index, stack.stack_index, 1))
-				self.revoke_button.disabled = self.records.is_empty()
-
+				await self.move_cards_from_panel_to_panel(panel.stack_index, stack.stack_index, 1)
+				
 				has_moved = true
 				break  # 移动一张后重新检查
 
 	# 所有自动移动完成后，检查游戏是否结束
 	self.check_game_is_end()
 	
-## 检查游戏是否结束
-func check_game_is_end() -> void:
-	# 0: 游戏继续，1： 游戏失败，2： 游戏成功
-	var game_state: int = 2
-	for stack in self.card_stacks:
-		if stack.cards.is_empty() or stack.cards.back().card_value != 13:
-			game_state = 0
-			break
-	
-	if game_state == 0:
-		# 检查卡牌是否有可以接收的牌，如果有，游戏可以继续，返回
-		for table_row in self.table_rows:
-			for recv_table_row in self.table_rows:
-				if table_row == recv_table_row:
-					continue
-				if recv_table_row.can_receive(table_row.cards.back()):
-					return
-		game_state = 1
-					
-	if game_state == 0:
-		return
-	
+func show_dialog(success: bool) -> void:
 	var dialog: Dialog = DialogScene.instantiate()
 	self.add_child(dialog)
-	dialog.show_dialog(game_state == 2, func(): dialog.hide_dialog(); start_new_game())
+	dialog.show_dialog(success, func(): dialog.hide_dialog(); start_new_game())
 	
-## 移动到当前牌列
-func move_card_to_row_if_needed(table_row: TableRow, pending_stack_index: int):
-	if int(pending_stack_index / 8) != 0:
-		# 检查缓存区的牌是否可以移动到牌堆
-		if self.table_rows[pending_stack_index].cards.is_empty():
+## 检查游戏是否结束
+func check_game_is_end() -> void:
+	var is_game_success: bool = true
+	for stack in self.card_stacks:
+		if stack.cards.is_empty() or stack.cards.back().card_value != 13:
+			is_game_success = false
+			break
+			
+	if is_game_success:
+		self.show_dialog(true)
+		return
+		
+	# 检查是否有空缓存区
+	for buffer in self.card_buffers:
+		if buffer.cards.is_empty():
 			return
-		
-		var card: Card = self.table_rows[pending_stack_index].cards.back()
-		if table_row.can_receive(card):
-			self.table_rows[pending_stack_index].pop_card(self.table_container, 60)
+			
+	# 检查是否有空列
+	for table_row in self.table_rows:
+		if table_row.cards.is_empty():
+			return
+	
+	# 检查牌列是否有可以接收的牌，如果有，游戏可以继续，返回
+	for table_row in self.table_rows + self.card_buffers:
+		for recv_table_row in self.table_rows:
+			if table_row == recv_table_row:
+				continue
+			if recv_table_row.can_receive(table_row.cards.back()):
+				return
+	
+	# 游戏失败			
+	self.show_dialog(false)
 
-			var global_x_pos: float = table_row.cards.back().global_position.x if not table_row.cards.is_empty() else table_row.global_position.x
-			var global_y_pos: float = table_row.cards.back().global_position.y + Consts.CARD_VISIBLE_HEIGHT if not table_row.cards.is_empty() else table_row.global_position.y
-			var tween: Tween = card.move_card_to(Vector2(global_x_pos, global_y_pos), func():
-				table_row.push_card(card)
-			)
-			await tween.finished
-
-			self.records.append(Record.newRecord(pending_stack_index, table_row.stack_index, 1))
-			self.revoke_button.disabled = self.records.is_empty()
-	else:
-		var from_table_row: TableRow = self.table_rows[pending_stack_index]
-		await self.move_row_card_to_row_if_needed(table_row, from_table_row)
-
-	await self.auto_move_card_to_stack_if_needed()
-	
-func move_card_to_stack_if_needed(stack_index: int) -> bool:
-	self.cancel_all_selection()
-	
-	# 拿到牌堆的卡牌
-	var card: Card = self.table_rows[stack_index].cards.back()
-	if card == null:
-		return false
-	
-	# 检查是否可以移动到牌堆
-	var card_stack: CardStack = self.card_stacks[card.card_suit]
-	if self.check_card_can_move_to_stack(card, card_stack):
-		card.move_card_to(Vector2(card_stack.global_position), func():
-			card_stack.push_card(card)
-		)
-		return true
-		
-	return false
-	
 ## 单击牌堆区
 func _on_card_stack_clicked(card_stack: CardStack) -> void:
 	# 没有选择的牌，不做任何处理
@@ -391,7 +332,10 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 	if self.table_rows[table_row.stack_index].cards.is_empty():
 		return
 	
-	if self.move_card_to_stack_if_needed(table_row.stack_index):
+	var card: Card = table_row.cards.back()
+	var stack: CardStack = self.card_stacks[card.card_suit]
+	if self.check_card_can_move_to_stack(card, stack):
+		await self.move_cards_from_panel_to_panel(table_row.stack_index, stack.stack_index, 1)
 		return
 	
 	var matched_card_buffer: CardBuffer = null
@@ -399,20 +343,8 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 		if card_buffer.cards.is_empty():
 			matched_card_buffer = card_buffer
 			break
-	
 	if matched_card_buffer != null:
-		var card: Card = self.table_rows[table_row.stack_index].cards.back()
-		self.table_rows[table_row.stack_index].pop_card(self.table_container, 60)
-
-		var tween: Tween = card.move_card_to(matched_card_buffer.global_position, func():
-			matched_card_buffer.push_card(card)
-		)
-		await tween.finished
-
-		self.records.append(Record.newRecord(table_row.stack_index, matched_card_buffer.stack_index, 1))
-		self.revoke_button.disabled = self.records.is_empty()
-
-	await self.auto_move_card_to_stack_if_needed()
+		await self.move_cards_from_panel_to_panel(table_row.stack_index, matched_card_buffer.stack_index, 1)
 		
 ## 单击牌面
 func _on_table_row_single_clicked(table_row: TableRow) -> void:
@@ -427,14 +359,21 @@ func _on_table_row_single_clicked(table_row: TableRow) -> void:
 		self.table_row_masks[table_row.stack_index].visible = true
 		self.stack_selected_index = table_row.stack_index
 	else:
-		self.move_card_to_row_if_needed(table_row, pending_stack_index)
-
+		if pending_stack_index >= Consts.CARD_BUFFER_START_INDEX:
+			if self.all_panels[pending_stack_index].cards.size() <= 0:
+				return
+				
+			var card: Card = self.all_panels[pending_stack_index].cards.back()
+			if table_row.can_receive(card):
+				await self.move_cards_from_panel_to_panel(pending_stack_index, table_row.stack_index, 1)
+		else:
+			await self.move_row_card_to_row_if_needed(table_row, self.all_panels[pending_stack_index])
 
 func _on_new_game_pressed() -> void:
 	self.start_new_game()
 
 func _on_revoke_pressed() -> void:
-	self.do_revoke()
+	await self.do_revoke()
 
 func _on_exit_game_pressed() -> void:
 	self.get_tree().quit()

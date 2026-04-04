@@ -17,7 +17,7 @@ func push_card(ori_card: Card) -> void:
 	ori_card.z_index = self.cards.size()
 	self.cards.append(ori_card)
 	
-func pop_card(parent: Control, zIndex: int = 60) -> Card:
+func pop_card(parent: Control = null, zIndex: int = 60) -> Card:
 	if self.cards.is_empty():
 		return
 	var card: Card = self.cards.pop_back()

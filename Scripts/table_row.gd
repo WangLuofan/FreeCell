@@ -39,13 +39,8 @@ func push_card(card: Card) -> void:
 	
 	self.cards.append(card)
 	card.z_index = self.get_child_count()
-	
-func clear_all_cards() -> void:
-	while self.cards.size() > 0:
-		var card: Card = self.pop_card(null)
-		card.queue_free()
- 	
-func pop_card(parent: Control, zIndex: int = 60) -> Card:
+
+func pop_card(parent: Control = null, zIndex: int = 60) -> Card:
 	if self.cards.size() <= 0:
 		return
 	

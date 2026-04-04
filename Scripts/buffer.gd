@@ -38,7 +38,7 @@ func push_card(ori_card: Card) -> void:
 	self.cards.back().z_index = 3
 
 ## 推出卡片
-func pop_card(parent: Control, zIndex: int = 60) -> Card:
+func pop_card(parent: Control = null, zIndex: int = 60) -> Card:
 	if self.cards.is_empty():
 		return
 	
