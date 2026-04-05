@@ -12,6 +12,7 @@ var card_buffers: Array[CardBuffer] = []
 
 var records: Array[Record] = []
 var is_revoking: bool = false
+var is_auto_moving: bool = false
 var is_game_over: bool = false
 
 var all_cards: Array[Card] = []
@@ -68,9 +69,6 @@ func _ready() -> void:
 		
 	for card_buffer in self.card_buffers:
 		card_buffer.on_card_buffer_clicked.connect(_on_card_buffer_clicked)
-		
-	for card_stack in self.card_stacks:
-		card_stack.on_stack_clicked.connect(_on_card_stack_clicked)
 		
 	self.start_new_game()
 	
@@ -146,32 +144,53 @@ func move_cards_from_panel_to_panel(from_index: int, to_index: int, moved_count:
 	await self.move_card_to_position_animated(moved_cards, moved_positions)
 	for card in moved_cards:
 		to.push_card(card)
-	
+
 	if not self.is_revoking:
 		self.records.append(Record.newRecord(from_index, to_index, moved_count))
-		await self.auto_move_card_to_stack_if_needed()
+		if not self.is_auto_moving:
+			await self.auto_move_card_to_stack_if_needed()
 	
 func do_revoke() -> void:
-	if self.records.is_empty() or self.is_revoking:
+	if self.records.is_empty() or self.is_auto_moving:
 		return
-	self.is_revoking = true
-		
+
+	if self.is_revoking:
+		print("警告：撤销操作正在进行中，跳过本次调用")
+		return
+
 	var record: Record = self.records.pop_back()
+
+	# 验证数据有效性，如果无效就提前返回（不加锁）
+	if record.target_stack_index < 0 or record.target_stack_index >= self.all_panels.size() or \
+	   record.original_stack_index < 0 or record.original_stack_index >= self.all_panels.size() or \
+	   record.card_moved_count <= 0:
+		print("撤销数据无效: ", record.target_stack_index, " -> ", record.original_stack_index, " count: ", record.card_moved_count)
+		return
+
+	print("开始撤销: ", record.target_stack_index, " -> ", record.original_stack_index)
+	self.is_revoking = true
+
 	await self.move_cards_from_panel_to_panel(record.target_stack_index, record.original_stack_index, record.card_moved_count)
 
 	self.cancel_all_selection()
 	self.revoke_button.disabled = self.records.is_empty()
 	self.is_revoking = false
+	print("撤销完成")
 	
 ## 清理资源
 func clean_resource() -> void:
+	self.is_revoking = false
 	for panel in self.all_panels:
 		while not panel.cards.is_empty():
 			panel.pop_card()
 
 ## 开始新游戏
 func start_new_game() -> void:
+	if self.is_auto_moving:
+		return
+	
 	self.is_game_over = false
+	self.is_revoking = false
 	self.clean_resource()
 	self.cancel_all_selection()
 			
@@ -189,25 +208,6 @@ func cancel_all_selection() -> void:
 		card_buffer.set_selected(false)
 		
 	self.stack_selected_index = -1
-		
-## 单击缓冲区
-func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
-	var pending_stack_index: int = self.stack_selected_index
-	self.cancel_all_selection()
-	
-	# 单击当前缓存区
-	if pending_stack_index == card_buffer.stack_index:
-		return
-	
-	# 如果当前没有选择，且缓存区可以被选中，则选中
-	if pending_stack_index == -1 and card_buffer.can_selected():
-		card_buffer.set_selected(true)
-		self.stack_selected_index = card_buffer.stack_index
-	elif pending_stack_index >= 0:
-		if self.all_panels[pending_stack_index].cards.is_empty():
-			return
-		
-		await self.move_cards_from_panel_to_panel(pending_stack_index, self.stack_selected_index, 1)
 
 ## 检查牌是否可以移动到牌堆		
 func check_card_can_move_to_stack(card: Card, card_stack: CardStack) -> bool:
@@ -242,6 +242,9 @@ func calculate_max_card_can_move() -> int:
 	
 ## 移动到当前牌列
 func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: TableRow):
+	if self.is_auto_moving:
+		return
+	
 	var max_move_count: int = min(self.calculate_max_card_can_move(), from_table_row.cards.size())
 	var moved_count: int = 0
 	
@@ -261,8 +264,9 @@ func move_row_card_to_row_if_needed(to_table_row: TableRow, from_table_row: Tabl
 	if target_receving_card == null or target_receving_card.can_receive(pre_card):
 		await self.move_cards_from_panel_to_panel(from_table_row.stack_index, to_table_row.stack_index, moved_count)
 	
-## 检查堆列是否有牌可以移动到牌堆
+## 自动移动牌到牌堆
 func auto_move_card_to_stack_if_needed() -> void:
+	self.is_auto_moving = true
 	var has_moved: bool = true
 
 	while has_moved:
@@ -282,6 +286,7 @@ func auto_move_card_to_stack_if_needed() -> void:
 				break  # 移动一张后重新检查
 
 	# 所有自动移动完成后，检查游戏是否结束
+	self.is_auto_moving = false
 	self.check_game_is_end()
 	
 func show_dialog(success: bool) -> void:
@@ -327,16 +332,14 @@ func check_game_is_end() -> void:
 	self.is_game_over = true
 	self.show_dialog(false)
 
-## 单击牌堆区
-func _on_card_stack_clicked(card_stack: CardStack) -> void:
-	# 没有选择的牌，不做任何处理
-	if self.stack_selected_index == -1:
-		return
-		
+#region signals
 ## 双击牌面
 func _on_table_row_double_clicked(table_row: TableRow) -> void:
+	if self.is_auto_moving:
+		return
+	
 	self.cancel_all_selection()
-	if self.table_rows[table_row.stack_index].cards.is_empty():
+	if self.table_rows[table_row.stack_index].cards.is_empty() or self.is_auto_moving:
 		return
 	
 	var card: Card = table_row.cards.back()
@@ -355,6 +358,9 @@ func _on_table_row_double_clicked(table_row: TableRow) -> void:
 		
 ## 单击牌面
 func _on_table_row_single_clicked(table_row: TableRow) -> void:
+	if self.is_auto_moving:
+		return
+	
 	var pending_stack_index: int = self.stack_selected_index
 	self.cancel_all_selection()
 	
@@ -375,12 +381,39 @@ func _on_table_row_single_clicked(table_row: TableRow) -> void:
 				await self.move_cards_from_panel_to_panel(pending_stack_index, table_row.stack_index, 1)
 		else:
 			await self.move_row_card_to_row_if_needed(table_row, self.all_panels[pending_stack_index])
+			
+		## 单击缓冲区
+func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
+	if self.is_auto_moving:
+		return
+	
+	var pending_stack_index: int = self.stack_selected_index
+	self.cancel_all_selection()
+	
+	# 单击当前缓存区
+	if pending_stack_index == card_buffer.stack_index:
+		return
+	
+	# 如果当前没有选择，且缓存区可以被选中，则选中
+	if pending_stack_index == -1 and card_buffer.can_selected():
+		card_buffer.set_selected(true)
+		self.stack_selected_index = card_buffer.stack_index
+	elif pending_stack_index >= 0 or not card_buffer.cards.is_empty():
+		if self.all_panels[pending_stack_index].cards.is_empty():
+			return
+		
+		await self.move_cards_from_panel_to_panel(pending_stack_index, card_buffer.stack_index, 1)
 
 func _on_new_game_pressed() -> void:
+	if self.is_auto_moving:
+		return
 	self.start_new_game()
 
 func _on_revoke_pressed() -> void:
+	if self.is_auto_moving:
+		return
 	await self.do_revoke()
 
 func _on_exit_game_pressed() -> void:
 	self.get_tree().quit()
+#endregion
