@@ -201,6 +201,8 @@ func start_new_game() -> void:
 	for index in range(Consts.CARD_SUIT_TOTAL_COUNT * Consts.CARD_VALUE_TOTAL_COUNT):
 		table_rows[card_index].push_card(all_cards[index])
 		card_index = (card_index + 1) % Consts.CARD_TABLE_COL_COUNT
+		
+	self.revoke_button.disabled = true
 
 ## 取消所有选择
 func cancel_all_selection() -> void:
