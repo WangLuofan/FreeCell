@@ -184,6 +184,8 @@ func clean_resource() -> void:
 		while not panel.cards.is_empty():
 			panel.pop_card()
 
+	self.records.clear()
+
 ## 开始新游戏
 func start_new_game() -> void:
 	if self.is_auto_moving:
@@ -335,8 +337,6 @@ func check_game_is_end() -> void:
 #region signals
 ## 双击牌面
 func _on_table_row_double_clicked(table_row: TableRow) -> void:
-	if self.is_auto_moving:
-		return
 	
 	self.cancel_all_selection()
 	if self.table_rows[table_row.stack_index].cards.is_empty() or self.is_auto_moving:
