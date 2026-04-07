@@ -382,7 +382,7 @@ func _on_table_row_single_clicked(table_row: TableRow) -> void:
 		else:
 			await self.move_row_card_to_row_if_needed(table_row, self.all_panels[pending_stack_index])
 			
-		## 单击缓冲区
+## 单击缓冲区
 func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 	if self.is_auto_moving:
 		return
@@ -399,7 +399,7 @@ func _on_card_buffer_clicked(card_buffer: CardBuffer) -> void:
 		card_buffer.set_selected(true)
 		self.stack_selected_index = card_buffer.stack_index
 	elif pending_stack_index >= 0 or not card_buffer.cards.is_empty():
-		if self.all_panels[pending_stack_index].cards.is_empty():
+		if self.all_panels[pending_stack_index].cards.is_empty() or not card_buffer.cards.is_empty():
 			return
 		
 		await self.move_cards_from_panel_to_panel(pending_stack_index, card_buffer.stack_index, 1)
