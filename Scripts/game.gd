@@ -16,6 +16,7 @@ var is_auto_moving: bool = false
 var is_game_over: bool = false
 
 var all_cards: Array[Card] = []
+var current_level: int = 0  # 当前关卡编号（首次调用start_new_game会变成1）
 
 @onready var revoke_button: Button = $VBoxContainer/revoke
 @onready var table_container: Control = $TableContainer
@@ -187,21 +188,41 @@ func clean_resource() -> void:
 	self.records.clear()
 
 ## 开始新游戏
-func start_new_game() -> void:
+## level: 关卡编号，-1表示进入下一关，0表示重玩当前关，>0表示指定关卡
+func start_new_game(level: int = -1) -> void:
 	if self.is_auto_moving:
 		return
-	
+
+	# 处理关卡编号
+	if level == -1:
+		current_level += 1  # 下一关
+	elif level == 0:
+		pass  # 重玩当前关，保持current_level不变
+	else:
+		current_level = level  # 指定关卡
+
 	self.is_game_over = false
 	self.is_revoking = false
 	self.clean_resource()
 	self.cancel_all_selection()
-			
-	all_cards.shuffle()
+
+	# 使用关卡编号作为随机种子来洗牌
+	var rng = RandomNumberGenerator.new()
+	rng.seed = current_level
+
+	# Fisher-Yates洗牌算法
+	for i in range(all_cards.size() - 1, 0, -1):
+		var j = rng.randi_range(0, i)
+		var temp = all_cards[i]
+		all_cards[i] = all_cards[j]
+		all_cards[j] = temp
+
+	# 发牌
 	var card_index: int = 0
 	for index in range(Consts.CARD_SUIT_TOTAL_COUNT * Consts.CARD_VALUE_TOTAL_COUNT):
 		table_rows[card_index].push_card(all_cards[index])
 		card_index = (card_index + 1) % Consts.CARD_TABLE_COL_COUNT
-		
+
 	self.revoke_button.disabled = true
 
 ## 取消所有选择
